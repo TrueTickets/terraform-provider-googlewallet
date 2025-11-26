@@ -25,6 +25,10 @@ import (
 // This allows filtering out archived issuers in the data source.
 const ArchivedPrefix = "[ARCHIVED] "
 
+// TestingPrefix is the prefix used for issuers created during acceptance testing.
+// This allows filtering out test issuers in the data source.
+const TestingPrefix = "[TESTING] "
+
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
 	_ resource.Resource                = &IssuerResource{}

@@ -1,9 +1,14 @@
-# List only active issuers (default behavior - excludes archived)
+# List only active issuers (default behavior - excludes archived and testing)
 data "googlewallet_issuers" "active" {}
 
 # List all issuers including archived ones
-data "googlewallet_issuers" "all" {
+data "googlewallet_issuers" "with_archived" {
   include_archived = true
+}
+
+# List all issuers including test issuers (useful for test cleanup)
+data "googlewallet_issuers" "with_testing" {
+  include_testing = true
 }
 
 output "active_issuer_count" {

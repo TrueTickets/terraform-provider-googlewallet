@@ -45,6 +45,10 @@ type IssuersDataSourceModel struct {
 	// Archived issuers have names starting with "[ARCHIVED] ".
 	IncludeArchived types.Bool `tfsdk:"include_archived"`
 
+	// IncludeTesting controls whether test issuers are included in the list.
+	// Test issuers have names starting with "[TESTING] ".
+	IncludeTesting types.Bool `tfsdk:"include_testing"`
+
 	// Issuers is the list of issuers.
 	Issuers []IssuerModel `tfsdk:"issuers"`
 }

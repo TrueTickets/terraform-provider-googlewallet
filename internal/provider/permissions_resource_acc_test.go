@@ -46,7 +46,7 @@ func getTestSecondaryEmail() string {
 //   - GOOGLEWALLET_TEST_SA_EMAIL: Service account email (will be set as OWNER)
 //   - GOOGLEWALLET_TEST_SECONDARY_EMAIL: Secondary email for testing (user, group, or SA)
 func TestAccPermissionsResource(t *testing.T) {
-	rName := fmt.Sprintf("tf-test-%s", acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
+	rName := fmt.Sprintf("%stf-test-%s", TestingPrefix, acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
 	saEmail := getTestServiceAccountEmail()
 	secondaryEmail := getTestSecondaryEmail()
 

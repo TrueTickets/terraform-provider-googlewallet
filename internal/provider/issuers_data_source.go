@@ -36,17 +36,22 @@ func (d *IssuersDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `Fetches all Google Wallet Issuers accessible to the authenticated service account.
 
-Use this data source to list all issuers you have access to. By default, archived issuers (those with names starting with "[ARCHIVED] ") are excluded.
+Use this data source to list all issuers you have access to. By default, archived issuers (names starting with "[ARCHIVED] ") and test issuers (names starting with "[TESTING] ") are excluded.
 
 ## Example Usage
 
 ` + "```hcl" + `
-# List only active issuers (default behavior)
+# List only active issuers (default behavior - excludes archived and testing)
 data "googlewallet_issuers" "active" {}
 
 # List all issuers including archived ones
-data "googlewallet_issuers" "all" {
+data "googlewallet_issuers" "with_archived" {
   include_archived = true
+}
+
+# List all issuers including test issuers (useful for test cleanup)
+data "googlewallet_issuers" "with_testing" {
+  include_testing = true
 }
 
 output "active_issuer_count" {
@@ -61,6 +66,10 @@ output "issuer_names" {
 		Attributes: map[string]schema.Attribute{
 			"include_archived": schema.BoolAttribute{
 				MarkdownDescription: "Whether to include archived issuers (those with names starting with \"[ARCHIVED] \"). Defaults to false.",
+				Optional:            true,
+			},
+			"include_testing": schema.BoolAttribute{
+				MarkdownDescription: "Whether to include test issuers (those with names starting with \"[TESTING] \"). Defaults to false. Useful for cleaning up after acceptance tests.",
 				Optional:            true,
 			},
 			"issuers": schema.ListNestedAttribute{
@@ -142,8 +151,15 @@ func (d *IssuersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		includeArchived = data.IncludeArchived.ValueBool()
 	}
 
+	// Determine whether to include testing issuers (default: false)
+	includeTesting := false
+	if !data.IncludeTesting.IsNull() {
+		includeTesting = data.IncludeTesting.ValueBool()
+	}
+
 	tflog.Debug(ctx, "Listing issuers", map[string]interface{}{
 		"include_archived": includeArchived,
+		"include_testing":  includeTesting,
 	})
 
 	// Get all issuers from API
@@ -158,12 +174,19 @@ func (d *IssuersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	// Filter and map response to Terraform state
 	data.Issuers = make([]IssuerModel, 0, len(issuers))
-	skippedCount := 0
+	archivedSkipped := 0
+	testingSkipped := 0
 
 	for _, issuer := range issuers {
 		// Filter out archived issuers unless explicitly included
 		if !includeArchived && strings.HasPrefix(issuer.Name, ArchivedPrefix) {
-			skippedCount++
+			archivedSkipped++
+			continue
+		}
+
+		// Filter out testing issuers unless explicitly included
+		if !includeTesting && strings.HasPrefix(issuer.Name, TestingPrefix) {
+			testingSkipped++
 			continue
 		}
 
@@ -195,7 +218,8 @@ func (d *IssuersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	tflog.Info(ctx, "Listed issuers", map[string]interface{}{
 		"total":            len(issuers),
 		"returned":         len(data.Issuers),
-		"archived_skipped": skippedCount,
+		"archived_skipped": archivedSkipped,
+		"testing_skipped":  testingSkipped,
 	})
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

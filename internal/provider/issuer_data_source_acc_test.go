@@ -12,8 +12,9 @@ import (
 )
 
 // TestAccIssuerDataSource tests the issuer data source.
+// Test issuers are prefixed with "[TESTING] " so they can be filtered out.
 func TestAccIssuerDataSource(t *testing.T) {
-	rName := fmt.Sprintf("tf-test-%s", acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
+	rName := fmt.Sprintf("%stf-test-%s", TestingPrefix, acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },

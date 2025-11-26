@@ -4,15 +4,20 @@ page_title: "googlewallet_issuers Data Source - googlewallet"
 subcategory: ""
 description: |-
   Fetches all Google Wallet Issuers accessible to the authenticated service account.
-  Use this data source to list all issuers you have access to. By default, archived issuers (those with names starting with "[ARCHIVED] ") are excluded.
+  Use this data source to list all issuers you have access to. By default, archived issuers (names starting with "[ARCHIVED] ") and test issuers (names starting with "[TESTING] ") are excluded.
   Example Usage
 
-  # List only active issuers (default behavior)
+  # List only active issuers (default behavior - excludes archived and testing)
   data "googlewallet_issuers" "active" {}
 
   # List all issuers including archived ones
-  data "googlewallet_issuers" "all" {
+  data "googlewallet_issuers" "with_archived" {
     include_archived = true
+  }
+
+  # List all issuers including test issuers (useful for test cleanup)
+  data "googlewallet_issuers" "with_testing" {
+    include_testing = true
   }
 
   output "active_issuer_count" {
@@ -28,17 +33,22 @@ description: |-
 
 Fetches all Google Wallet Issuers accessible to the authenticated service account.
 
-Use this data source to list all issuers you have access to. By default, archived issuers (those with names starting with "[ARCHIVED] ") are excluded.
+Use this data source to list all issuers you have access to. By default, archived issuers (names starting with "[ARCHIVED] ") and test issuers (names starting with "[TESTING] ") are excluded.
 
 ## Example Usage
 
 ```hcl
-# List only active issuers (default behavior)
+# List only active issuers (default behavior - excludes archived and testing)
 data "googlewallet_issuers" "active" {}
 
 # List all issuers including archived ones
-data "googlewallet_issuers" "all" {
+data "googlewallet_issuers" "with_archived" {
   include_archived = true
+}
+
+# List all issuers including test issuers (useful for test cleanup)
+data "googlewallet_issuers" "with_testing" {
+  include_testing = true
 }
 
 output "active_issuer_count" {
@@ -53,12 +63,17 @@ output "issuer_names" {
 ## Example Usage
 
 ```terraform
-# List only active issuers (default behavior - excludes archived)
+# List only active issuers (default behavior - excludes archived and testing)
 data "googlewallet_issuers" "active" {}
 
 # List all issuers including archived ones
-data "googlewallet_issuers" "all" {
+data "googlewallet_issuers" "with_archived" {
   include_archived = true
+}
+
+# List all issuers including test issuers (useful for test cleanup)
+data "googlewallet_issuers" "with_testing" {
+  include_testing = true
 }
 
 output "active_issuer_count" {
@@ -76,6 +91,7 @@ output "issuer_names" {
 ### Optional
 
 - `include_archived` (Boolean) Whether to include archived issuers (those with names starting with "[ARCHIVED] "). Defaults to false.
+- `include_testing` (Boolean) Whether to include test issuers (those with names starting with "[TESTING] "). Defaults to false. Useful for cleaning up after acceptance tests.
 
 ### Read-Only
 

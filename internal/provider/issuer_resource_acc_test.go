@@ -13,9 +13,10 @@ import (
 
 // TestAccIssuerResource tests the full lifecycle of an issuer resource.
 // Note: This test creates real resources in Google Wallet and cannot clean up
-// due to API limitations (issuers cannot be deleted).
+// due to API limitations (issuers cannot be deleted). Test issuers are prefixed
+// with "[TESTING] " so they can be filtered out in the data source.
 func TestAccIssuerResource(t *testing.T) {
-	rName := fmt.Sprintf("tf-test-%s", acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
+	rName := fmt.Sprintf("%stf-test-%s", TestingPrefix, acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
