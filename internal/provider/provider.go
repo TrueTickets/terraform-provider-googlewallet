@@ -132,6 +132,19 @@ func (p *GoogleWalletProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
+	// If credentials looks like a file path (doesn't start with '{'), try to read it
+	if !isJSONCredentials(credentials) {
+		contents, err := os.ReadFile(credentials)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Read Credentials File",
+				fmt.Sprintf("Could not read credentials file %q: %s", credentials, err.Error()),
+			)
+			return
+		}
+		credentials = string(contents)
+	}
+
 	tflog.Debug(ctx, "Creating Google Wallet API client")
 
 	// Create API client
@@ -173,4 +186,14 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
+}
+
+// isJSONCredentials checks if the credentials string looks like JSON content
+// rather than a file path. JSON credentials start with '{' after trimming whitespace.
+func isJSONCredentials(credentials string) bool {
+	trimmed := credentials
+	for len(trimmed) > 0 && (trimmed[0] == ' ' || trimmed[0] == '\t' || trimmed[0] == '\n' || trimmed[0] == '\r') {
+		trimmed = trimmed[1:]
+	}
+	return len(trimmed) > 0 && trimmed[0] == '{'
 }

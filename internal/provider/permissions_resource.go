@@ -6,7 +6,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -34,6 +36,15 @@ func NewPermissionsResource() resource.Resource {
 // PermissionsResource defines the resource implementation.
 type PermissionsResource struct {
 	client *Client
+}
+
+// sortPermissions sorts permissions by email address for consistent ordering.
+// This is necessary because the Google Wallet API may return permissions in
+// a different order than they were set, causing Terraform to detect false changes.
+func sortPermissions(perms []PermissionModel) {
+	sort.Slice(perms, func(i, j int) bool {
+		return perms[i].EmailAddress.ValueString() < perms[j].EmailAddress.ValueString()
+	})
 }
 
 func (r *PermissionsResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -165,14 +176,17 @@ func (r *PermissionsResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	// Map response back to Terraform state
-	data.IssuerID = types.StringValue(strconv.FormatInt(updated.IssuerId, 10))
+	// Note: Keep the issuer_id from the plan - the API doesn't return it in the response
+	// Note: The API returns roles in lowercase, but we normalize to uppercase for consistency
 	data.Permissions = make([]PermissionModel, len(updated.Permissions))
 	for i, perm := range updated.Permissions {
 		data.Permissions[i] = PermissionModel{
 			EmailAddress: types.StringValue(perm.EmailAddress),
-			Role:         types.StringValue(perm.Role),
+			Role:         types.StringValue(strings.ToUpper(perm.Role)),
 		}
 	}
+	// Sort permissions by email to ensure consistent ordering
+	sortPermissions(data.Permissions)
 
 	tflog.Info(ctx, "Created permissions", map[string]interface{}{
 		"issuer_id":         data.IssuerID.ValueString(),
@@ -215,14 +229,17 @@ func (r *PermissionsResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 
 	// Map response to Terraform state
-	data.IssuerID = types.StringValue(strconv.FormatInt(permissions.IssuerId, 10))
+	// Note: Keep the issuer_id from the current state - the API doesn't return it in the response
+	// Note: The API returns roles in lowercase, but we normalize to uppercase for consistency
 	data.Permissions = make([]PermissionModel, len(permissions.Permissions))
 	for i, perm := range permissions.Permissions {
 		data.Permissions[i] = PermissionModel{
 			EmailAddress: types.StringValue(perm.EmailAddress),
-			Role:         types.StringValue(perm.Role),
+			Role:         types.StringValue(strings.ToUpper(perm.Role)),
 		}
 	}
+	// Sort permissions by email to ensure consistent ordering
+	sortPermissions(data.Permissions)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -272,14 +289,17 @@ func (r *PermissionsResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	// Map response back to Terraform state
-	data.IssuerID = types.StringValue(strconv.FormatInt(updated.IssuerId, 10))
+	// Note: Keep the issuer_id from the plan - the API doesn't return it in the response
+	// Note: The API returns roles in lowercase, but we normalize to uppercase for consistency
 	data.Permissions = make([]PermissionModel, len(updated.Permissions))
 	for i, perm := range updated.Permissions {
 		data.Permissions[i] = PermissionModel{
 			EmailAddress: types.StringValue(perm.EmailAddress),
-			Role:         types.StringValue(perm.Role),
+			Role:         types.StringValue(strings.ToUpper(perm.Role)),
 		}
 	}
+	// Sort permissions by email to ensure consistent ordering
+	sortPermissions(data.Permissions)
 
 	tflog.Info(ctx, "Updated permissions", map[string]interface{}{
 		"issuer_id":         data.IssuerID.ValueString(),

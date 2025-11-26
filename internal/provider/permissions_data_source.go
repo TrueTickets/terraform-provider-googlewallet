@@ -6,7 +6,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -129,14 +131,19 @@ func (d *PermissionsDataSource) Read(ctx context.Context, req datasource.ReadReq
 	}
 
 	// Map response to Terraform state
-	data.IssuerID = types.StringValue(strconv.FormatInt(permissions.IssuerId, 10))
+	// Note: Keep the issuer_id from the config - the API doesn't return it in the response
+	// Note: The API returns roles in lowercase, but we normalize to uppercase for consistency
 	data.Permissions = make([]PermissionModel, len(permissions.Permissions))
 	for i, perm := range permissions.Permissions {
 		data.Permissions[i] = PermissionModel{
 			EmailAddress: types.StringValue(perm.EmailAddress),
-			Role:         types.StringValue(perm.Role),
+			Role:         types.StringValue(strings.ToUpper(perm.Role)),
 		}
 	}
+	// Sort permissions by email to ensure consistent ordering
+	sort.Slice(data.Permissions, func(i, j int) bool {
+		return data.Permissions[i].EmailAddress.ValueString() < data.Permissions[j].EmailAddress.ValueString()
+	})
 
 	tflog.Info(ctx, "Read permissions data source", map[string]interface{}{
 		"issuer_id":         data.IssuerID.ValueString(),
