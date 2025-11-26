@@ -41,6 +41,10 @@ type IssuerContactInfoModel struct {
 
 // IssuersDataSourceModel describes the data source for listing issuers.
 type IssuersDataSourceModel struct {
+	// IncludeArchived controls whether archived issuers are included in the list.
+	// Archived issuers have names starting with "[ARCHIVED] ".
+	IncludeArchived types.Bool `tfsdk:"include_archived"`
+
 	// Issuers is the list of issuers.
 	Issuers []IssuerModel `tfsdk:"issuers"`
 }

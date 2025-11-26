@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -35,23 +36,33 @@ func (d *IssuersDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `Fetches all Google Wallet Issuers accessible to the authenticated service account.
 
-Use this data source to list all issuers you have access to.
+Use this data source to list all issuers you have access to. By default, archived issuers (those with names starting with "[ARCHIVED] ") are excluded.
 
 ## Example Usage
 
 ` + "```hcl" + `
-data "googlewallet_issuers" "all" {}
+# List only active issuers (default behavior)
+data "googlewallet_issuers" "active" {}
 
-output "issuer_count" {
-  value = length(data.googlewallet_issuers.all.issuers)
+# List all issuers including archived ones
+data "googlewallet_issuers" "all" {
+  include_archived = true
+}
+
+output "active_issuer_count" {
+  value = length(data.googlewallet_issuers.active.issuers)
 }
 
 output "issuer_names" {
-  value = [for issuer in data.googlewallet_issuers.all.issuers : issuer.name]
+  value = [for issuer in data.googlewallet_issuers.active.issuers : issuer.name]
 }
 ` + "```" + `
 `,
 		Attributes: map[string]schema.Attribute{
+			"include_archived": schema.BoolAttribute{
+				MarkdownDescription: "Whether to include archived issuers (those with names starting with \"[ARCHIVED] \"). Defaults to false.",
+				Optional:            true,
+			},
 			"issuers": schema.ListNestedAttribute{
 				MarkdownDescription: "List of all issuers accessible to the authenticated service account.",
 				Computed:            true,
@@ -125,7 +136,15 @@ func (d *IssuersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	tflog.Debug(ctx, "Listing all issuers")
+	// Determine whether to include archived issuers (default: false)
+	includeArchived := false
+	if !data.IncludeArchived.IsNull() {
+		includeArchived = data.IncludeArchived.ValueBool()
+	}
+
+	tflog.Debug(ctx, "Listing issuers", map[string]interface{}{
+		"include_archived": includeArchived,
+	})
 
 	// Get all issuers from API
 	issuers, err := d.client.ListIssuers(ctx)
@@ -137,18 +156,26 @@ func (d *IssuersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		return
 	}
 
-	// Map response to Terraform state
-	data.Issuers = make([]IssuerModel, len(issuers))
-	for i, issuer := range issuers {
-		data.Issuers[i] = IssuerModel{
+	// Filter and map response to Terraform state
+	data.Issuers = make([]IssuerModel, 0, len(issuers))
+	skippedCount := 0
+
+	for _, issuer := range issuers {
+		// Filter out archived issuers unless explicitly included
+		if !includeArchived && strings.HasPrefix(issuer.Name, ArchivedPrefix) {
+			skippedCount++
+			continue
+		}
+
+		issuerModel := IssuerModel{
 			ID:   types.StringValue(strconv.FormatInt(issuer.IssuerId, 10)),
 			Name: types.StringValue(issuer.Name),
 		}
 
 		if issuer.HomepageUrl != "" {
-			data.Issuers[i].HomepageURL = types.StringValue(issuer.HomepageUrl)
+			issuerModel.HomepageURL = types.StringValue(issuer.HomepageUrl)
 		} else {
-			data.Issuers[i].HomepageURL = types.StringNull()
+			issuerModel.HomepageURL = types.StringNull()
 		}
 
 		if issuer.ContactInfo != nil {
@@ -157,14 +184,18 @@ func (d *IssuersDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			if resp.Diagnostics.HasError() {
 				return
 			}
-			data.Issuers[i].ContactInfo = contactInfoObj
+			issuerModel.ContactInfo = contactInfoObj
 		} else {
-			data.Issuers[i].ContactInfo = types.ObjectNull(contactInfoAttrTypes())
+			issuerModel.ContactInfo = types.ObjectNull(contactInfoAttrTypes())
 		}
+
+		data.Issuers = append(data.Issuers, issuerModel)
 	}
 
 	tflog.Info(ctx, "Listed issuers", map[string]interface{}{
-		"count": len(issuers),
+		"total":            len(issuers),
+		"returned":         len(data.Issuers),
+		"archived_skipped": skippedCount,
 	})
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

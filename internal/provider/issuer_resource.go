@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -19,6 +20,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"google.golang.org/api/walletobjects/v1"
 )
+
+// ArchivedPrefix is the prefix added to issuer names when they are archived (destroyed).
+// This allows filtering out archived issuers in the data source.
+const ArchivedPrefix = "[ARCHIVED] "
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
@@ -46,7 +51,7 @@ func (r *IssuerResource) Schema(ctx context.Context, req resource.SchemaRequest,
 
 An issuer is an entity that can create and manage Google Wallet passes. Each issuer has a unique ID assigned by Google.
 
-~> **Note:** Google Wallet API does not support deleting issuers. When this resource is destroyed, Terraform will remove it from state but the issuer will continue to exist in Google Wallet. This is a "soft delete" behavior.
+~> **Note:** Google Wallet API does not support deleting issuers. When this resource is destroyed, Terraform will rename the issuer with an "[ARCHIVED] " prefix (e.g., "My Company" becomes "[ARCHIVED] My Company") and remove it from state. The issuer will continue to exist in Google Wallet. Use the ` + "`googlewallet_issuers`" + ` data source with ` + "`include_archived = true`" + ` to see archived issuers.
 
 ## Example Usage
 
@@ -332,13 +337,49 @@ func (r *IssuerResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	tflog.Warn(ctx, "Google Wallet API does not support deleting issuers. The issuer will be removed from Terraform state but will continue to exist in Google Wallet.", map[string]interface{}{
+	// Parse the ID
+	issuerID, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Parsing Issuer ID",
+			fmt.Sprintf("Could not parse issuer ID %q: %s", data.ID.ValueString(), err.Error()),
+		)
+		return
+	}
+
+	currentName := data.Name.ValueString()
+
+	// Only archive if not already archived (idempotent)
+	if !strings.HasPrefix(currentName, ArchivedPrefix) {
+		archivedName := ArchivedPrefix + currentName
+
+		tflog.Info(ctx, "Archiving issuer by renaming", map[string]interface{}{
+			"id":            data.ID.ValueString(),
+			"original_name": currentName,
+			"archived_name": archivedName,
+		})
+
+		// Update the issuer name to mark it as archived
+		issuer := &walletobjects.Issuer{
+			Name: archivedName,
+		}
+
+		_, err = r.client.UpdateIssuer(ctx, issuerID, issuer)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Archiving Issuer",
+				fmt.Sprintf("Could not archive issuer %s: %s. The issuer will be removed from state but may not be marked as archived in Google Wallet.", data.ID.ValueString(), err.Error()),
+			)
+			// Continue to remove from state even if archive fails
+		}
+	}
+
+	tflog.Warn(ctx, "Google Wallet API does not support deleting issuers. The issuer has been renamed with [ARCHIVED] prefix and removed from Terraform state.", map[string]interface{}{
 		"id":   data.ID.ValueString(),
-		"name": data.Name.ValueString(),
+		"name": currentName,
 	})
 
-	// Soft delete: just remove from state without calling API
-	// The issuer will continue to exist in Google Wallet
+	// Remove from state - the issuer continues to exist in Google Wallet with [ARCHIVED] prefix
 }
 
 func (r *IssuerResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
