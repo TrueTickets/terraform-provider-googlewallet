@@ -154,6 +154,7 @@ func (p *GoogleWalletProvider) Configure(ctx context.Context, req provider.Confi
 func (p *GoogleWalletProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewIssuerResource,
+		NewPermissionsResource,
 	}
 }
 
@@ -161,6 +162,7 @@ func (p *GoogleWalletProvider) DataSources(ctx context.Context) []func() datasou
 	return []func() datasource.DataSource{
 		NewIssuerDataSource,
 		NewIssuersDataSource,
+		NewPermissionsDataSource,
 	}
 }
 

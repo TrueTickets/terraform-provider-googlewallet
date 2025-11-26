@@ -44,3 +44,23 @@ type IssuersDataSourceModel struct {
 	// Issuers is the list of issuers.
 	Issuers []IssuerModel `tfsdk:"issuers"`
 }
+
+// PermissionsModel describes the Terraform schema for Google Wallet Permissions.
+// This resource is authoritative - it manages all permissions for an issuer.
+type PermissionsModel struct {
+	// IssuerID is the ID of the issuer these permissions belong to.
+	// Stored as string to avoid int64 precision issues.
+	IssuerID types.String `tfsdk:"issuer_id"`
+
+	// Permissions is the complete list of permissions for this issuer.
+	Permissions []PermissionModel `tfsdk:"permissions"`
+}
+
+// PermissionModel describes a single permission entry.
+type PermissionModel struct {
+	// EmailAddress is the email of the user, group, or service account.
+	EmailAddress types.String `tfsdk:"email_address"`
+
+	// Role is the role granted (OWNER, READER, or WRITER).
+	Role types.String `tfsdk:"role"`
+}
