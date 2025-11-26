@@ -153,13 +153,14 @@ func (p *GoogleWalletProvider) Configure(ctx context.Context, req provider.Confi
 
 func (p *GoogleWalletProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		// Resources will be added in Phase 3 and 4
+		NewIssuerResource,
 	}
 }
 
 func (p *GoogleWalletProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		// Data sources will be added in Phase 3 and 4
+		NewIssuerDataSource,
+		NewIssuersDataSource,
 	}
 }
 
