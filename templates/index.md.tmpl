@@ -1,0 +1,50 @@
+---
+page_title: "Provider: Google Wallet"
+description: |-
+  The Google Wallet provider enables managing Google Wallet Issuers and Permissions as code.
+---
+
+# Google Wallet Provider
+
+The Google Wallet provider enables you to manage [Google Wallet](https://developers.google.com/wallet) resources using Terraform or OpenTofu. This includes managing Issuers (organizations that can create passes) and Permissions (who has access to manage those Issuers).
+
+## Example Usage
+
+{{ tffile "examples/provider/provider.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Authentication
+
+The provider requires a Google Cloud service account with access to the Google Wallet API. The service account must have the "Developer" role in the [Google Pay & Wallet Console](https://pay.google.com/business/console/).
+
+### Setting up credentials
+
+1. Enable the Google Wallet API in your Google Cloud Console
+2. Create a service account and download the JSON key file
+3. Add the service account to your Issuer in the Google Pay & Wallet Console with "Developer" access
+
+### Providing credentials
+
+Credentials can be provided in several ways:
+
+1. **Provider configuration** (recommended for local development):
+   ```hcl
+   provider "googlewallet" {
+     credentials = "/path/to/service-account.json"
+   }
+   ```
+
+2. **Environment variable** (recommended for CI/CD):
+   ```bash
+   export GOOGLEWALLET_CREDENTIALS="/path/to/service-account.json"
+   # or
+   export GOOGLE_CREDENTIALS="/path/to/service-account.json"
+   ```
+
+3. **JSON content directly**:
+   ```hcl
+   provider "googlewallet" {
+     credentials = var.service_account_json
+   }
+   ```
