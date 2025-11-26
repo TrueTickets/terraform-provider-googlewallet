@@ -1,115 +1,161 @@
 # Google Wallet Terraform Provider Design Document
 
 ## 1. Overview
-This document outlines the design for the `terraform-provider-googlewallet`, a Terraform provider for managing resources in the Google Wallet API. The initial scope includes managing Issuers and their Permissions.
 
-The provider will be built using the [HashiCorp Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework), adhering to the patterns established in the reference `terraform-provider-appleappstoreconnect`.
+This document outlines the design for the
+`terraform-provider-googlewallet`, a Terraform provider for managing
+resources in the Google Wallet API. The initial scope includes managing
+Issuers and their Permissions.
+
+The provider will be built using the
+[HashiCorp Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework),
+adhering to the patterns established in the reference
+`terraform-provider-appleappstoreconnect`.
 
 ## 2. Provider Configuration
 
 ### Schema
-The provider establishes the identity (User or Service Account) used to interact with the API.
 
-| Attribute | Type | Optional | Description | Environment Variable |
-| :--- | :--- | :--- | :--- | :--- |
-| `credentials` | String | Yes | Path to a service account JSON key file or the JSON content itself. | `GOOGLEWALLET_CREDENTIALS`, `GOOGLE_CREDENTIALS` |
+The provider establishes the identity (User or Service Account) used to
+interact with the API.
+
+| Attribute     | Type   | Optional | Description                                                         | Environment Variable                             |
+| :------------ | :----- | :------- | :------------------------------------------------------------------ | :----------------------------------------------- |
+| `credentials` | String | Yes      | Path to a service account JSON key file or the JSON content itself. | `GOOGLEWALLET_CREDENTIALS`, `GOOGLE_CREDENTIALS` |
 
 ### Authentication & Context Logic
-1.  **Identity:** The `credentials` determine *who* is making the API calls.
-    *   **Service Accounts:** Typically used for programmatic access. If a Service Account is an "Aggregator", `issuer.insert` will create a new Issuer ID owned by that Service Account.
-    *   **Users:** If authenticating as a user authorized in multiple contexts, the API `issuer.insert` behavior creates an Issuer associated with that user's identity. *Note: The API `v1` `insert` method does not provide a parameter to select a specific parent "Business Account" hierarchy. The association is determined by the authenticated credential's scope.*
+
+1.  **Identity:** The `credentials` determine _who_ is making the API
+    calls.
+
+    - **Service Accounts:** Typically used for programmatic access. If a
+      Service Account is an "Aggregator", `issuer.insert` will create a
+      new Issuer ID owned by that Service Account.
+    - **Users:** If authenticating as a user authorized in multiple
+      contexts, the API `issuer.insert` behavior creates an Issuer
+      associated with that user's identity. _Note: The API `v1` `insert`
+      method does not provide a parameter to select a specific parent
+      "Business Account" hierarchy. The association is determined by the
+      authenticated credential's scope._
 
 2.  **Managing Multiple Accounts:**
-    *   If you need to manage Issuers across completely disparate Business Accounts that require different Service Accounts, use **Terraform Provider Aliases** with different `credentials`.
-    *   If a single Service Account manages multiple Issuers (e.g., an Aggregator), you distinguish them using the `issuer_id` resource attribute.
+    - If you need to manage Issuers across completely disparate Business
+      Accounts that require different Service Accounts, use **Terraform
+      Provider Aliases** with different `credentials`.
+    - If a single Service Account manages multiple Issuers (e.g., an
+      Aggregator), you distinguish them using the `issuer_id` resource
+      attribute.
 
 ## 3. Resources
 
 ### 3.1. `googlewallet_issuer`
+
 Manages an Issuer account in Google Wallet.
 
 #### Schema
-| Attribute | Type | Required | Computed | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `issuer_id` | String | No | Yes | The unique identifier for the issuer. **Computed** (assigned by Google upon creation). Can be specified for **Import**. |
-| `name` | String | Yes | No | The account name of the issuer. |
-| `contact_info` | Block | Yes | No | Contact information for the issuer. |
-| `homepage_url` | String | No | No | URL for the issuer's homepage. |
-| `smart_tap_merchant_data` | Block | No | No | configuration for Smart Tap. |
+
+| Attribute                 | Type   | Required | Computed | Description                                                                                                             |
+| :------------------------ | :----- | :------- | :------- | :---------------------------------------------------------------------------------------------------------------------- |
+| `issuer_id`               | String | No       | Yes      | The unique identifier for the issuer. **Computed** (assigned by Google upon creation). Can be specified for **Import**. |
+| `name`                    | String | Yes      | No       | The account name of the issuer.                                                                                         |
+| `contact_info`            | Block  | Yes      | No       | Contact information for the issuer.                                                                                     |
+| `homepage_url`            | String | No       | No       | URL for the issuer's homepage.                                                                                          |
+| `smart_tap_merchant_data` | Block  | No       | No       | configuration for Smart Tap.                                                                                            |
 
 **`contact_info` Block:**
-*   `name` (String, Required)
-*   `email` (String, Required)
-*   `phone` (String, Optional)
+
+- `name` (String, Required)
+- `email` (String, Required)
+- `phone` (String, Optional)
 
 #### Operations
-*   **Create:** Uses `issuer.insert`. A new Issuer ID is generated by Google.
-*   **Read:** Uses `issuer.get` (using the `issuer_id` from state).
-*   **Update:** Uses `issuer.patch` or `issuer.update`.
-*   **Delete:** **Not supported by API.**
-    *   *Strategy:* Soft Delete. `terraform destroy` will remove the resource from the Terraform state and log a warning.
-*   **Import:** Supported. `terraform import googlewallet_issuer.example <issuer_id>`
+
+- **Create:** Uses `issuer.insert`. A new Issuer ID is generated by
+  Google.
+- **Read:** Uses `issuer.get` (using the `issuer_id` from state).
+- **Update:** Uses `issuer.patch` or `issuer.update`.
+- **Delete:** **Not supported by API.**
+    - _Strategy:_ Soft Delete. `terraform destroy` will remove the
+      resource from the Terraform state and log a warning.
+- **Import:** Supported.
+  `terraform import googlewallet_issuer.example <issuer_id>`
 
 ---
 
 ### 3.2. `googlewallet_permissions`
-Manages access permissions for a specific Issuer. This resource is authoritative: it defines *all* permissions for the specified Issuer.
+
+Manages access permissions for a specific Issuer. This resource is
+authoritative: it defines _all_ permissions for the specified Issuer.
 
 #### Schema
-| Attribute | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `issuer_id` | String | Yes | The ID of the issuer to manage permissions for. |
-| `permissions` | List(Block) | Yes | A list of permission entries. |
 
-**`permissions` Block:**
-| Attribute | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `email_address` | String | Yes | The email address of the user or service account. |
-| `role` | String | Yes | The role to assign (`OWNER`, `READER`, `WRITER`). |
+| Attribute     | Type        | Required | Description                                     |
+| :------------ | :---------- | :------- | :---------------------------------------------- |
+| `issuer_id`   | String      | Yes      | The ID of the issuer to manage permissions for. |
+| `permissions` | List(Block) | Yes      | A list of permission entries.                   |
+
+**`permissions` Block:** | Attribute | Type | Required | Description | |
+:--- | :--- | :--- | :--- | | `email_address` | String | Yes | The email
+address of the user or service account. | | `role` | String | Yes | The
+role to assign (`OWNER`, `READER`, `WRITER`). |
 
 #### Operations
-*   **Create:** Uses `permissions.update` (The API treats this as an update to the Issuer's permission set).
-*   **Read:** Uses `permissions.get`.
-*   **Update:** Uses `permissions.update`. Replaces the entire list of permissions.
-*   **Delete:** Uses `permissions.update` with an empty list.
-*   **Import:** Supported. `terraform import googlewallet_permissions.example <issuer_id>`
+
+- **Create:** Uses `permissions.update` (The API treats this as an
+  update to the Issuer's permission set).
+- **Read:** Uses `permissions.get`.
+- **Update:** Uses `permissions.update`. Replaces the entire list of
+  permissions.
+- **Delete:** Uses `permissions.update` with an empty list.
+- **Import:** Supported.
+  `terraform import googlewallet_permissions.example <issuer_id>`
 
 ## 4. Data Sources
 
 ### 4.1. `googlewallet_issuer`
+
 Retrieves information about a specific existing Issuer.
 
 #### Schema
-| Attribute | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `issuer_id` | String | Yes | The unique identifier of the issuer to retrieve. |
-| `name` | String | Computed | The account name. |
-| ... | ... | Computed | All other fields from the resource. |
+
+| Attribute   | Type   | Required | Description                                      |
+| :---------- | :----- | :------- | :----------------------------------------------- |
+| `issuer_id` | String | Yes      | The unique identifier of the issuer to retrieve. |
+| `name`      | String | Computed | The account name.                                |
+| ...         | ...    | Computed | All other fields from the resource.              |
 
 ### 4.2. `googlewallet_issuers`
-Retrieves a list of all Issuers accessible by the authenticated credentials.
+
+Retrieves a list of all Issuers accessible by the authenticated
+credentials.
 
 #### Schema
-| Attribute | Type | Computed | Description |
-| :--- | :--- | :--- | :--- |
-| `issuers` | List(Object) | Yes | A list of accessible issuer objects. |
+
+| Attribute | Type         | Computed | Description                          |
+| :-------- | :----------- | :------- | :----------------------------------- |
+| `issuers` | List(Object) | Yes      | A list of accessible issuer objects. |
 
 **`issuers` Object:**
-*   `issuer_id` (String)
-*   `name` (String)
-*   `homepage_url` (String)
+
+- `issuer_id` (String)
+- `name` (String)
+- `homepage_url` (String)
 
 ### 4.3. `googlewallet_permissions`
+
 Retrieves the current permission set for an Issuer.
 
 #### Schema
-| Attribute | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `issuer_id` | String | Yes | The ID of the issuer. |
+
+| Attribute     | Type        | Required | Description                      |
+| :------------ | :---------- | :------- | :------------------------------- |
+| `issuer_id`   | String      | Yes      | The ID of the issuer.            |
 | `permissions` | List(Block) | Computed | The list of current permissions. |
 
 ## 5. Project Structure
-The project will follow the structure of `terraform-provider-appleappstoreconnect`.
+
+The project will follow the structure of
+`terraform-provider-appleappstoreconnect`.
 
 ```text
 .
@@ -162,40 +208,64 @@ The project will follow the structure of `terraform-provider-appleappstoreconnec
 ```
 
 ## 6. Implementation Notes
-*   **Client:** We will use the `google.golang.org/api/walletobjects/v1` Go module for interacting with the Google Wallet API. This library provides direct access to the `issuer` and `permissions` services.
-*   **Validation:** Email formats and Role enums (`OWNER`, `READER`, `WRITER`) will be validated using Terraform validators.
-*   **Tooling Setup:**
-    *   **GoReleaser:** Configure `.goreleaser.yml` to build binaries for multiple platforms (darwin, linux, windows) and architectures (amd64, arm64).
-    *   **GitHub Actions:**
-        *   `test.yml`: Runs on PRs. Steps: Checkout, Setup Go, `go mod tidy`, `golangci-lint`, `go test ./...`.
-        *   `release.yml`: Runs on `v*` tags. Steps: Checkout, Setup Go, Import GPG key (if signing), Run GoReleaser.
-    *   **Linters:** Use `.golangci.yml` to enforce code style and consistency, matching the configuration of the reference provider.
-    *   **Taskfile:** Use `Taskfile.yml` (via `go-task/task`) to define common tasks like `build`, `install`, `test`, and `lint`.
+
+- **Client:** We will use the `google.golang.org/api/walletobjects/v1`
+  Go module for interacting with the Google Wallet API. This library
+  provides direct access to the `issuer` and `permissions` services.
+- **Validation:** Email formats and Role enums (`OWNER`, `READER`,
+  `WRITER`) will be validated using Terraform validators.
+- **Tooling Setup:**
+    - **GoReleaser:** Configure `.goreleaser.yml` to build binaries for
+      multiple platforms (darwin, linux, windows) and architectures
+      (amd64, arm64).
+    - **GitHub Actions:**
+        - `test.yml`: Runs on PRs. Steps: Checkout, Setup Go,
+          `go mod tidy`, `golangci-lint`, `go test ./...`.
+        - `release.yml`: Runs on `v*` tags. Steps: Checkout, Setup Go,
+          Import GPG key (if signing), Run GoReleaser.
+    - **Linters:** Use `.golangci.yml` to enforce code style and
+      consistency, matching the configuration of the reference provider.
+    - **Taskfile:** Use `Taskfile.yml` (via `go-task/task`) to define
+      common tasks like `build`, `install`, `test`, and `lint`.
 
 ## 7. Testing Strategy
 
-We will implement a comprehensive testing strategy covering both unit logic and full integration/acceptance testing.
+We will implement a comprehensive testing strategy covering both unit
+logic and full integration/acceptance testing.
 
 ### 7.1. Unit Tests (Go)
-*   **Scope:** Test helper functions, schema validation, plan modifiers, and client configuration logic.
-*   **Location:** Co-located with the source code in `internal/provider/` (e.g., `client_test.go`, `models_test.go`).
-*   **Framework:** Standard Go `testing` package.
-*   **Execution:** Run via `go test ./...` or `task test`.
+
+- **Scope:** Test helper functions, schema validation, plan modifiers,
+  and client configuration logic.
+- **Location:** Co-located with the source code in `internal/provider/`
+  (e.g., `client_test.go`, `models_test.go`).
+- **Framework:** Standard Go `testing` package.
+- **Execution:** Run via `go test ./...` or `task test`.
 
 ### 7.2. Acceptance Tests (OpenTofu/Terraform)
-*   **Scope:** Validate the full lifecycle of resources (Create, Read, Update, Delete/Import) against the real Google Wallet API. These tests spin up a real Terraform instance and run `apply`, `destroy`, etc.
-*   **Location:** `internal/provider/` (e.g., `issuer_resource_test.go`).
-*   **Framework:** `github.com/hashicorp/terraform-plugin-testing/helper/resource`.
-*   **Configuration:**
-    *   Requires `TF_ACC=1` environment variable.
-    *   Requires valid `GOOGLEWALLET_CREDENTIALS` to run against the live API.
-*   **Execution:** Run via `TF_ACC=1 go test ./...` or `task test-acc`.
+
+- **Scope:** Validate the full lifecycle of resources (Create, Read,
+  Update, Delete/Import) against the real Google Wallet API. These tests
+  spin up a real Terraform instance and run `apply`, `destroy`, etc.
+- **Location:** `internal/provider/` (e.g., `issuer_resource_test.go`).
+- **Framework:**
+  `github.com/hashicorp/terraform-plugin-testing/helper/resource`.
+- **Configuration:**
+    - Requires `TF_ACC=1` environment variable.
+    - Requires valid `GOOGLEWALLET_CREDENTIALS` to run against the live
+      API.
+- **Execution:** Run via `TF_ACC=1 go test ./...` or `task test-acc`.
 
 ### 7.3. Documentation Examples
-*   **Scope:** Provide copy-pasteable, valid OpenTofu configuration examples for users. These are distinct from tests but crucial for usability.
-*   **Location:** `examples/` directory.
-*   **Content:**
-    *   `provider/`: Example provider setup.
-    *   `resources/`: Complete examples for creating Issuers and setting Permissions.
-    *   `data-sources/`: Examples for reading data.
-*   **Usage:** These examples will be embedded in the documentation (Markdown files) and serve as a reference for users.
+
+- **Scope:** Provide copy-pasteable, valid OpenTofu configuration
+  examples for users. These are distinct from tests but crucial for
+  usability.
+- **Location:** `examples/` directory.
+- **Content:**
+    - `provider/`: Example provider setup.
+    - `resources/`: Complete examples for creating Issuers and setting
+      Permissions.
+    - `data-sources/`: Examples for reading data.
+- **Usage:** These examples will be embedded in the documentation
+  (Markdown files) and serve as a reference for users.
