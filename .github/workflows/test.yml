@@ -30,15 +30,15 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
               with:
                   go-version-file: "go.mod"
                   cache: true
             - run: go mod download
             - run: go build -v .
             - name: Run linters
-              uses: golangci/golangci-lint-action@v8
+              uses: golangci/golangci-lint-action@v9
               with:
                   version: latest
 
@@ -46,8 +46,8 @@ jobs:
         name: Documentation Generation
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
               with:
                   go-version-file: "go.mod"
                   cache: true
@@ -69,8 +69,8 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
               with:
                   go-version-file: "go.mod"
                   cache: true
@@ -96,8 +96,8 @@ jobs:
                     - "1.11.*"
                     - "1.12.*"
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-go@v5
+            - uses: actions/checkout@v6
+            - uses: actions/setup-go@v6
               with:
                   go-version-file: "go.mod"
                   cache: true
