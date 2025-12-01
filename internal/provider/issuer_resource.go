@@ -432,33 +432,21 @@ func extractContactInfo(ctx context.Context, obj types.Object) (*walletobjects.I
 func contactInfoToObject(_ context.Context, info *walletobjects.IssuerContactInfo) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	// Always use StringValue to preserve empty strings - Terraform distinguishes
+	// between null and "" and we must return exactly what was configured.
+	// Similarly, always return a list (even empty) rather than null for alerts_emails.
+	emailValues := make([]attr.Value, len(info.AlertsEmails))
+	for i, email := range info.AlertsEmails {
+		emailValues[i] = types.StringValue(email)
+	}
+	emailList, d := types.ListValue(types.StringType, emailValues)
+	diags.Append(d...)
+
 	attrs := map[string]attr.Value{
-		"name":          types.StringNull(),
-		"phone":         types.StringNull(),
-		"email":         types.StringNull(),
-		"alerts_emails": types.ListNull(types.StringType),
-	}
-
-	if info.Name != "" {
-		attrs["name"] = types.StringValue(info.Name)
-	}
-
-	if info.Phone != "" {
-		attrs["phone"] = types.StringValue(info.Phone)
-	}
-
-	if info.Email != "" {
-		attrs["email"] = types.StringValue(info.Email)
-	}
-
-	if len(info.AlertsEmails) > 0 {
-		emailValues := make([]attr.Value, len(info.AlertsEmails))
-		for i, email := range info.AlertsEmails {
-			emailValues[i] = types.StringValue(email)
-		}
-		emailList, d := types.ListValue(types.StringType, emailValues)
-		diags.Append(d...)
-		attrs["alerts_emails"] = emailList
+		"name":          types.StringValue(info.Name),
+		"phone":         types.StringValue(info.Phone),
+		"email":         types.StringValue(info.Email),
+		"alerts_emails": emailList,
 	}
 
 	obj, d := types.ObjectValue(contactInfoAttrTypes(), attrs)
