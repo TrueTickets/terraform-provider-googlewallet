@@ -71,24 +71,35 @@ func TestGetCredentialsFromEnv(t *testing.T) {
 		name                string
 		googleWalletCreds   string
 		googleCreds         string
+		googleAppCreds      string
 		expectedCredentials string
 	}{
 		{
-			name:                "GOOGLEWALLET_CREDENTIALS takes priority",
+			name:                "GOOGLEWALLET_CREDENTIALS takes highest priority",
 			googleWalletCreds:   "wallet-creds",
 			googleCreds:         "google-creds",
+			googleAppCreds:      "/path/to/app-creds.json",
 			expectedCredentials: "wallet-creds",
 		},
 		{
 			name:                "Falls back to GOOGLE_CREDENTIALS when GOOGLEWALLET_CREDENTIALS is empty",
 			googleWalletCreds:   "",
 			googleCreds:         "google-creds",
+			googleAppCreds:      "/path/to/app-creds.json",
 			expectedCredentials: "google-creds",
 		},
 		{
-			name:                "Both empty returns empty",
+			name:                "Falls back to GOOGLE_APPLICATION_CREDENTIALS when others are empty",
 			googleWalletCreds:   "",
 			googleCreds:         "",
+			googleAppCreds:      "/path/to/app-creds.json",
+			expectedCredentials: "/path/to/app-creds.json",
+		},
+		{
+			name:                "All empty returns empty (will use ADC)",
+			googleWalletCreds:   "",
+			googleCreds:         "",
+			googleAppCreds:      "",
 			expectedCredentials: "",
 		},
 	}
@@ -98,11 +109,17 @@ func TestGetCredentialsFromEnv(t *testing.T) {
 			// Use t.Setenv which automatically cleans up after the test
 			t.Setenv("GOOGLEWALLET_CREDENTIALS", tt.googleWalletCreds)
 			t.Setenv("GOOGLE_CREDENTIALS", tt.googleCreds)
+			t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tt.googleAppCreds)
 
 			// Simulate the credential resolution logic from provider.go
-			credentials := os.Getenv("GOOGLEWALLET_CREDENTIALS")
-			if credentials == "" {
-				credentials = os.Getenv("GOOGLE_CREDENTIALS")
+			// Priority: GOOGLEWALLET_CREDENTIALS > GOOGLE_CREDENTIALS > GOOGLE_APPLICATION_CREDENTIALS
+			var credentials string
+			if env := os.Getenv("GOOGLEWALLET_CREDENTIALS"); env != "" {
+				credentials = env
+			} else if env := os.Getenv("GOOGLE_CREDENTIALS"); env != "" {
+				credentials = env
+			} else if env := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); env != "" {
+				credentials = env
 			}
 
 			if credentials != tt.expectedCredentials {

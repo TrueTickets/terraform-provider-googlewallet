@@ -30,7 +30,7 @@ provider "googlewallet" {
 
 ### Optional
 
-- `credentials` (String, Sensitive) The service account credentials JSON. This can be the contents of a service account key file. Can also be set via the `GOOGLEWALLET_CREDENTIALS` or `GOOGLE_CREDENTIALS` environment variables.
+- `credentials` (String, Sensitive) The service account credentials JSON or path to a service account JSON file. Can also be set via the `GOOGLEWALLET_CREDENTIALS`, `GOOGLE_CREDENTIALS`, or `GOOGLE_APPLICATION_CREDENTIALS` environment variables. If not provided, the provider will attempt to use Application Default Credentials (ADC).
 
 ## Authentication
 
@@ -44,25 +44,48 @@ The provider requires a Google Cloud service account with access to the Google W
 
 ### Providing credentials
 
-Credentials can be provided in several ways:
+The provider supports multiple authentication methods, in order of precedence:
 
-1. **Provider configuration** (recommended for local development):
-   ```hcl
-   provider "googlewallet" {
-     credentials = "/path/to/service-account.json"
-   }
-   ```
+1. **Provider configuration** - Credentials attribute with JSON content or file path
+2. **GOOGLEWALLET_CREDENTIALS** - Environment variable with JSON content or file path
+3. **GOOGLE_CREDENTIALS** - Environment variable with JSON content or file path
+4. **GOOGLE_APPLICATION_CREDENTIALS** - Environment variable with file path (standard Google Cloud method)
+5. **Application Default Credentials (ADC)** - Automatic credential discovery
 
-2. **Environment variable** (recommended for CI/CD):
-   ```bash
-   export GOOGLEWALLET_CREDENTIALS="/path/to/service-account.json"
-   # or
-   export GOOGLE_CREDENTIALS="/path/to/service-account.json"
-   ```
+#### Using provider configuration
 
-3. **JSON content directly**:
-   ```hcl
-   provider "googlewallet" {
-     credentials = var.service_account_json
-   }
-   ```
+```hcl
+provider "googlewallet" {
+  credentials = "/path/to/service-account.json"
+}
+```
+
+#### Using environment variables (recommended for CI/CD)
+
+```bash
+# Provider-specific variable
+export GOOGLEWALLET_CREDENTIALS="/path/to/service-account.json"
+
+# Standard Google Cloud method (recommended)
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+```
+
+```hcl
+provider "googlewallet" {}
+```
+
+#### Using Application Default Credentials
+
+If running on Google Cloud (GCE, Cloud Run, GKE, etc.) or after running `gcloud auth application-default login`, the provider will automatically use Application Default Credentials:
+
+```hcl
+provider "googlewallet" {}
+```
+
+#### Using JSON content directly
+
+```hcl
+provider "googlewallet" {
+  credentials = var.service_account_json
+}
+```

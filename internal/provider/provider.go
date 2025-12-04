@@ -48,12 +48,20 @@ The provider requires a Google Cloud service account with the following IAM role
 - ` + "`roles/wallet.admin`" + ` - For full management of Wallet resources
 - ` + "`roles/wallet.issuer`" + ` - For issuing passes (if not using admin role)
 
-The service account credentials can be provided via:
-1. The ` + "`credentials`" + ` attribute (JSON string of service account key)
-2. The ` + "`GOOGLEWALLET_CREDENTIALS`" + ` environment variable
-3. The ` + "`GOOGLE_CREDENTIALS`" + ` environment variable (fallback)
+The provider supports multiple authentication methods, in order of precedence:
+
+1. **` + "`credentials`" + ` attribute** - Service account JSON content or file path
+2. **` + "`GOOGLEWALLET_CREDENTIALS`" + ` environment variable** - JSON content or file path
+3. **` + "`GOOGLE_CREDENTIALS`" + ` environment variable** - JSON content or file path
+4. **` + "`GOOGLE_APPLICATION_CREDENTIALS`" + ` environment variable** - File path to service account JSON
+5. **Application Default Credentials (ADC)** - Automatic credential discovery
+
+For most users, setting ` + "`GOOGLE_APPLICATION_CREDENTIALS`" + ` or using ADC is the recommended approach,
+as it provides consistency with other Google Cloud tooling.
 
 ## Example Usage
+
+### Using explicit credentials
 
 ` + "```hcl" + `
 provider "googlewallet" {
@@ -61,11 +69,24 @@ provider "googlewallet" {
 }
 ` + "```" + `
 
-Or using environment variables:
+### Using environment variables
 
 ` + "```bash" + `
+# Option 1: JSON content
 export GOOGLEWALLET_CREDENTIALS=$(cat service-account.json)
+
+# Option 2: File path (recommended)
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ` + "```" + `
+
+` + "```hcl" + `
+provider "googlewallet" {}
+` + "```" + `
+
+### Using Application Default Credentials
+
+If running on Google Cloud (GCE, Cloud Run, etc.) or after running ` + "`gcloud auth application-default login`" + `,
+the provider will automatically use Application Default Credentials:
 
 ` + "```hcl" + `
 provider "googlewallet" {}
@@ -73,9 +94,12 @@ provider "googlewallet" {}
 `,
 		Attributes: map[string]schema.Attribute{
 			"credentials": schema.StringAttribute{
-				MarkdownDescription: "The service account credentials JSON. This can be the contents of a service account key file. Can also be set via the `GOOGLEWALLET_CREDENTIALS` or `GOOGLE_CREDENTIALS` environment variables.",
-				Optional:            true,
-				Sensitive:           true,
+				MarkdownDescription: "The service account credentials JSON or path to a service account JSON file. " +
+					"Can also be set via the `GOOGLEWALLET_CREDENTIALS`, `GOOGLE_CREDENTIALS`, or " +
+					"`GOOGLE_APPLICATION_CREDENTIALS` environment variables. If not provided, the provider " +
+					"will attempt to use Application Default Credentials (ADC).",
+				Optional:  true,
+				Sensitive: true,
 			},
 		},
 	}
@@ -106,48 +130,57 @@ func (p *GoogleWalletProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
-	// Set values from environment variables if not set in configuration
-	// Priority: config > GOOGLEWALLET_CREDENTIALS > GOOGLE_CREDENTIALS
-	credentials := os.Getenv("GOOGLEWALLET_CREDENTIALS")
-	if credentials == "" {
-		credentials = os.Getenv("GOOGLE_CREDENTIALS")
-	}
+	// Resolve credentials with priority:
+	// 1. credentials attribute (config)
+	// 2. GOOGLEWALLET_CREDENTIALS env var
+	// 3. GOOGLE_CREDENTIALS env var
+	// 4. GOOGLE_APPLICATION_CREDENTIALS env var (file path only)
+	// 5. Application Default Credentials (ADC) - handled by empty credentials in NewClient
 
-	if !data.Credentials.IsNull() {
+	var credentials string
+	var credentialsSource string
+
+	if !data.Credentials.IsNull() && data.Credentials.ValueString() != "" {
 		credentials = data.Credentials.ValueString()
+		credentialsSource = "credentials attribute"
+	} else if env := os.Getenv("GOOGLEWALLET_CREDENTIALS"); env != "" {
+		credentials = env
+		credentialsSource = "GOOGLEWALLET_CREDENTIALS environment variable"
+	} else if env := os.Getenv("GOOGLE_CREDENTIALS"); env != "" {
+		credentials = env
+		credentialsSource = "GOOGLE_CREDENTIALS environment variable"
+	} else if env := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); env != "" {
+		credentials = env
+		credentialsSource = "GOOGLE_APPLICATION_CREDENTIALS environment variable"
 	}
+	// If credentials is still empty, we'll use ADC (Application Default Credentials)
 
-	// Validate required fields
-	if credentials == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("credentials"),
-			"Missing Google Wallet Credentials",
-			"The provider cannot create the Google Wallet API client as there is a missing or empty value for credentials. "+
-				"Set the credentials value in the configuration or use the GOOGLEWALLET_CREDENTIALS environment variable. "+
-				"If either is already set, ensure the value is not empty.",
-		)
-	}
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// If credentials looks like a file path (doesn't start with '{'), try to read it
-	if !isJSONCredentials(credentials) {
+	// If credentials is set and looks like a file path (doesn't start with '{'), try to read it
+	if credentials != "" && !isJSONCredentials(credentials) {
+		tflog.Debug(ctx, "Reading credentials from file", map[string]interface{}{
+			"source": credentialsSource,
+			"path":   credentials,
+		})
 		contents, err := os.ReadFile(credentials)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to Read Credentials File",
-				fmt.Sprintf("Could not read credentials file %q: %s", credentials, err.Error()),
+				fmt.Sprintf("Could not read credentials file %q (from %s): %s", credentials, credentialsSource, err.Error()),
 			)
 			return
 		}
 		credentials = string(contents)
 	}
 
-	tflog.Debug(ctx, "Creating Google Wallet API client")
+	if credentials != "" {
+		tflog.Debug(ctx, "Creating Google Wallet API client with explicit credentials", map[string]interface{}{
+			"source": credentialsSource,
+		})
+	} else {
+		tflog.Debug(ctx, "Creating Google Wallet API client with Application Default Credentials")
+	}
 
-	// Create API client
+	// Create API client (empty credentials means use ADC)
 	client, err := NewClient(ctx, credentials)
 	if err != nil {
 		resp.Diagnostics.AddError(

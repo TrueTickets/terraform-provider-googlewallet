@@ -8,17 +8,26 @@ import (
 	"testing"
 )
 
-func TestNewClient_EmptyCredentials(t *testing.T) {
+func TestNewClient_EmptyCredentials_UsesADC(t *testing.T) {
+	// When credentials are empty, the client attempts to use
+	// Application Default Credentials (ADC). This test verifies
+	// that the client doesn't immediately fail with empty credentials
+	// but instead attempts ADC authentication.
+	//
+	// Note: This test may succeed or fail depending on whether ADC
+	// is configured in the test environment. We're only testing that
+	// it doesn't immediately reject empty credentials.
 	ctx := context.Background()
 
 	_, err := NewClient(ctx, "")
-	if err == nil {
-		t.Fatal("expected error for empty credentials")
-	}
-
-	expected := "credentials JSON cannot be empty"
-	if err.Error() != expected {
-		t.Errorf("expected error %q, got %q", expected, err.Error())
+	// The error, if any, should be about ADC, not about empty credentials
+	if err != nil {
+		// Check that the error mentions ADC, not "credentials cannot be empty"
+		if err.Error() == "credentials JSON cannot be empty" {
+			t.Fatal("client should attempt ADC when credentials are empty, not reject immediately")
+		}
+		// Any other error (like ADC not configured) is acceptable in test environment
+		t.Logf("ADC not available in test environment (expected): %v", err)
 	}
 }
 

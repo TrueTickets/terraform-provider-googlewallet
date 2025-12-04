@@ -24,19 +24,27 @@ type Client struct {
 	Permissions *walletobjects.PermissionsService
 }
 
-// NewClient creates a new Google Wallet API client using the provided
-// service account credentials JSON.
+// NewClient creates a new Google Wallet API client.
+// If credentialsJSON is provided, it uses explicit credentials.
+// If credentialsJSON is empty, it uses Application Default Credentials (ADC).
 func NewClient(ctx context.Context, credentialsJSON string) (*Client, error) {
-	if credentialsJSON == "" {
-		return nil, fmt.Errorf("credentials JSON cannot be empty")
+	var opts []option.ClientOption
+
+	// Always set the required scope
+	opts = append(opts, option.WithScopes(walletobjects.WalletObjectIssuerScope))
+
+	// If credentials are provided, use them explicitly
+	// Otherwise, the Google API client will use Application Default Credentials (ADC)
+	if credentialsJSON != "" {
+		opts = append(opts, option.WithCredentialsJSON([]byte(credentialsJSON)))
 	}
 
-	// Create the walletobjects service with credentials
-	service, err := walletobjects.NewService(ctx,
-		option.WithCredentialsJSON([]byte(credentialsJSON)),
-		option.WithScopes(walletobjects.WalletObjectIssuerScope),
-	)
+	// Create the walletobjects service
+	service, err := walletobjects.NewService(ctx, opts...)
 	if err != nil {
+		if credentialsJSON == "" {
+			return nil, fmt.Errorf("failed to create walletobjects service with Application Default Credentials: %w", err)
+		}
 		return nil, fmt.Errorf("failed to create walletobjects service: %w", err)
 	}
 
