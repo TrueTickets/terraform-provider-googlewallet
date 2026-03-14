@@ -36,7 +36,7 @@ func NewClient(ctx context.Context, credentialsJSON string) (*Client, error) {
 	// If credentials are provided, use them explicitly
 	// Otherwise, the Google API client will use Application Default Credentials (ADC)
 	if credentialsJSON != "" {
-		opts = append(opts, option.WithCredentialsJSON([]byte(credentialsJSON)))
+		opts = append(opts, option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(credentialsJSON)))
 	}
 
 	// Create the walletobjects service

@@ -36,7 +36,7 @@ func testAccPreCheck(t *testing.T) {
 		return
 	}
 
-	t.Fatal("One of GOOGLEWALLET_CREDENTIALS, GOOGLE_CREDENTIALS, or GOOGLE_APPLICATION_CREDENTIALS must be set for acceptance tests")
+	t.Skip("One of GOOGLEWALLET_CREDENTIALS, GOOGLE_CREDENTIALS, or GOOGLE_APPLICATION_CREDENTIALS must be set for acceptance tests")
 }
 
 // testAccProviderConfig returns the provider configuration for acceptance tests.
